@@ -9,10 +9,8 @@
 // Only for initial testing purposes
 #include "sample_image.h"
 
-#define PADDED_WIDTH 32
-#define PADDED_HEIGHT 32
-#define ORIGINAL_WIDTH 28
-#define ORIGINAL_HEIGHT 28
+#define IMG_WIDTH 28
+#define IMG_HEIGHT 28
 
 // Activation function
 float tanh_activation(float x) {
@@ -169,24 +167,20 @@ int read_pgm_to_padded_array(const char* filename, float* output_array) {
         return -1;
     }
 
-    if (width != ORIGINAL_WIDTH || height != ORIGINAL_HEIGHT) {
+    if (width != IMG_WIDTH| height != IMG_HEIGHT) {
         fprintf(stderr, "Warning: Image dimensions (%dx%d) are not the expected 28x28.\n", width, height);
     }
     
     printf("Reading PGM file: %s (%dx%d, max_val: %d)\n", filename, width, height, max_val);
 
-    // --- Read Pixel Data and Populate Array ---
-    int padding_ho = (PADDED_HEIGHT - ORIGINAL_HEIGHT) / 2; // horizontal offset
-    int padding_wo = (PADDED_WIDTH - ORIGINAL_WIDTH) / 2;   // vertical offset
-
     // Initialize the entire padded array to 0.0f
-    for (int i = 0; i < PADDED_HEIGHT * PADDED_WIDTH; ++i) {
+    for (int i = 0; i < IMG_WIDTH * IMG_HEIGHT; ++i) {
         output_array[i] = 0.0f;
     }
 
     // Read pixel values and place them in the center of the padded array
-    for (int h = 0; h < ORIGINAL_HEIGHT; ++h) {
-        for (int w = 0; w < ORIGINAL_WIDTH; ++w) {
+    for (int h = 0; h < IMG_HEIGHT; ++h) {
+        for (int w = 0; w < IMG_WIDTH; ++w) {
             int pixel;
             if (fscanf(fp, "%d", &pixel) != 1) {
                 fprintf(stderr, "Error: Ran out of data while reading pixels.\n");
@@ -195,10 +189,10 @@ int read_pgm_to_padded_array(const char* filename, float* output_array) {
             }
             
             // Calculate the index in the larger padded array
-            int padded_idx = (h + padding_ho) * PADDED_WIDTH + (w + padding_wo);
+            int idx = h * IMG_WIDTH + w;
             
             // Normalize the pixel value from [0, 255] to [0.0, 1.0]
-            output_array[padded_idx] = (float)pixel / max_val;
+            output_array[idx] = (float)pixel / max_val;
         }
     }
 
@@ -209,7 +203,7 @@ int read_pgm_to_padded_array(const char* filename, float* output_array) {
 int main() {
     printf("--- LeNet-5 Inference in C ---\n");
 
-    float my_image_array[PADDED_HEIGHT * PADDED_WIDTH];
+    float my_image_array[IMG_HEIGHT * IMG_WIDTH];
 
     // Assuming you ran the python script and have this file
     const char* image_to_load = "../model/mnist_pgm_images/mnist_img_4_label_9.pgm";
@@ -225,17 +219,17 @@ int main() {
 
     // C1: Conv Layer 1 (Input: 32x32x1, Output: 28x28x6)
     // Keras 'same' padding on a 32x32 input with a 5x5 kernel results in a 32x32 output.
-    float* c1_output = (float*)malloc(32 * 32 * 6 * sizeof(float));
+    float* c1_output = (float*)malloc(28 * 28 * 6 * sizeof(float));
 
     // S2: Pooling Layer 1 (Input: 32x32x6, Output: 16x16x6)
-    float* s2_output = (float*)malloc(16 * 16 * 6 * sizeof(float));
+    float* s2_output = (float*)malloc(24 * 24 * 6 * sizeof(float));
 
     // C3: Conv Layer 2 (Input: 16x16x6, Output: 12x12x16)
     // Keras 'valid' padding: 16 - 5 + 1 = 12
     float* c3_output = (float*)malloc(12 * 12 * 16 * sizeof(float));
 
     // S4: Pooling Layer 2 (Input: 12x12x16, Output: 6x6x16)
-    float* s4_output = (float*)malloc(6 * 6 * 16 * sizeof(float));
+    float* s4_output = (float*)malloc(8 * 8 * 16 * sizeof(float));
     
     // C5: Dense Layer 1 (Input: 6*6*16=576, Output: 120)
     // For original LeNet: Pool(12x12) -> 6x6. Flatten -> 6*6*16 = 576
@@ -247,30 +241,30 @@ int main() {
     // --- Execute the Forward Pass ---
     
     // Layer 1: Convolution (C1)
-    // Input: 32x32x1, Kernel: 5x5, Filters: 6 -> Output: 28x28x6
+    // Input: 28x28x1, Kernel: 5x5, Filters: 6 -> Output: 24x24x6
     convolution_layer(my_image_array, c1_output, C1_weights, C1_biases,
-                      32, 32, 1, 28, 28, 6, 5, 5, 0);
+                      28, 28, 1, 24, 24, 6, 5, 5, 2);
 
     // Layer 2: Pooling (S2)
-    // Input: 28x28x6, Pool: 2x2 -> Output: 14x15x6
-    avg_pool_layer(c1_output, s2_output, 28, 28, 6, 2);
+    // Input: 24x24x6, Pool: 2x2 -> Output: 12x12x6
+    avg_pool_layer(c1_output, s2_output, 24, 24, 6, 2);
 
     // Layer 3: Convolution (C3)
-    // Input: 16x16x6, Kernel: 5x5, Filters: 16, Padding: 0 ('valid') -> Output: 12x12x16
+    // Input: 12x12x6, Kernel: 5x5, Filters: 16) -> Output: 8x8x16
     convolution_layer(s2_output, c3_output, C3_weights, C3_biases,
-                      14, 14, 6, 10, 10, 16, 5, 5, 0);
+                      12, 12, 6, 8, 8, 16, 5, 5, 0);
                       
     // Layer 4: Pooling (S4)
-    // Input: 12x12x16, Pool: 2x2 -> Output: 6x6x16
-    avg_pool_layer(c3_output, s4_output, 10, 10, 16, 2);
+    // Input: 8x8x16, Pool: 2x2 -> Output: 4x4x16
+    avg_pool_layer(c3_output, s4_output, 8, 8, 16, 2);
 
     // The output of S4 is flattened before being passed to the dense layers.
-    // 5 * 5 * 16 = 400
+    // 4 * 4 * 16 = 256
     float* flattened_input = s4_output;
 
     // Layer 5: Dense (C5)
-    // Input: 400, Output: 120
-    dense_layer(flattened_input, c5_output, C5_FC1_weights, C5_FC1_biases, 400, 120);
+    // Input: 256, Output: 120
+    dense_layer(flattened_input, c5_output, C5_FC1_weights, C5_FC1_biases, 256, 120);
 
     // Layer 6: Dense (F6)
     // Input: 120, Output: 84
