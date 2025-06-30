@@ -64,7 +64,6 @@ int main() {
     for (int i = 0; i < NUM_FILTER_ONE; i++) initFilter_One(&filter_array_one[i], i);
     for (int i = 0; i < (NUM_FILTER_TWO * CHANNEL_TWO); i++) initFilter_Two(&filter_array_two[i], i);
 
-    print_output_vector(input_one[0], 10, "IMG");
     // First convolution layer (28*28 -> 24*24)
     convolve_one(input_one, output_one, filter_array_one);
     // Apply reLU
@@ -96,17 +95,11 @@ int main() {
     dense_two(dense_one_output, dense_two_output);
     reLU(dense_two_output, FC_LAYER_SIZE_THREE);
 
-    print_output_vector(final_output, 84, "FC2");
     // Third FC layer (output)
     dense_three(dense_two_output, final_output);
 
-    print_output_vector(final_output, 10, "Final");
-
     // Get the argMax of probability
     int predicted_num = argmax(final_output, 10);
-
-    softmax(final_output, FC_LAYER_SIZE_FOUR);
-    print_output_vector(final_output, 10, "Soft Max");
 
     printf("Final prediction for this image is %d\n", predicted_num);
 
