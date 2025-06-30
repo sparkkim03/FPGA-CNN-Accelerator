@@ -1,7 +1,9 @@
 .venv
 .vscode
 __pycache__
-/model/mnist_pgm_images
+/src/data
 /model/train-images.idx3-ubyte
 /model/train-labels.idx1-ubyte
-
+predict.dSYM
+*.o
+predict

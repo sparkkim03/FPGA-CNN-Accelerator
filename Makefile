@@ -10,10 +10,10 @@ CC = gcc
 CFLAGS = -g -Wall
 
 # The final executable name
-TARGET = convtest
+TARGET = predict
 
 # Source files
-SRCS = test/test.c src/conv.c src/pooling.c src/dense.c src/lenet_weights.c
+SRCS = src/model.c src/conv.c src/pooling.c src/dense.c src/lenet_weights.c src/util/util.c
 
 # Object files (derived from source files)
 OBJS = $(SRCS:.c=.o)

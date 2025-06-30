@@ -27,13 +27,16 @@ void initFilter_Two(Filter * filter, int filterNth) {
     filter->bias = conv2_bias[filterNth / 6];
 }
 
-void convolve_one(float input[INPUT_SIZE_ONE][INPUT_SIZE_ONE], float * output) {
+void convolve_one(float input[INPUT_SIZE_ONE][INPUT_SIZE_ONE], 
+    float output[NUM_FILTER_ONE][OUTPUT_SIZE_ONE][OUTPUT_SIZE_ONE],
+    Filter filters[NUM_FILTER_ONE]
+) {
     // This function writes its result to the global `output_one` array defined in conv.h.
     // The local `output` array declaration in the original stub has been removed to avoid shadowing.
 
     // Iterate over each of the 6 filters for the first layer.
     for (int f_idx = 0; f_idx < NUM_FILTER_ONE; f_idx++) {
-        Filter* filter = &filter_array_one[f_idx];
+        Filter* filter = &filters[f_idx];
 
         // Iterate over each pixel of the output feature map.
         for (int i = 0; i < OUTPUT_SIZE_ONE; i++) {
@@ -48,19 +51,17 @@ void convolve_one(float input[INPUT_SIZE_ONE][INPUT_SIZE_ONE], float * output) {
                 }
                 // Add the bias once per output pixel.
                 sum += filter->bias;
-                output_one[f_idx][i][j] = sum;
+                output[f_idx][i][j] = sum;
             }
         }
     }
 }
 
-void convolve_two(float input[CHANNEL_TWO][INPUT_SIZE_TWO][INPUT_SIZE_TWO], float * output) {
+void convolve_two(float input[CHANNEL_TWO][INPUT_SIZE_TWO][INPUT_SIZE_TWO], 
+    float output[NUM_FILTER_TWO][OUTPUT_SIZE_TWO][OUTPUT_SIZE_TWO],
+    Filter filters[NUM_FILTER_TWO * CHANNEL_TWO]
+) {
     // This function writes its result to the global `output_two` array defined in conv.h.
-    
-    // NOTE: This implementation assumes a corrected filter setup where there are
-    // NUM_FILTER_TWO * CHANNEL_TWO (16 * 6 = 96) total filters available,
-    // properly initialized from `conv2_weight`. Your `filter_array_two` in conv.h should
-    // be changed to `Filter filter_array_two[NUM_FILTER_TWO * CHANNEL_TWO];` for this to work.
 
     // Iterate over each of the 16 output feature maps.
     for (int f_idx = 0; f_idx < NUM_FILTER_TWO; f_idx++) {
@@ -72,7 +73,7 @@ void convolve_two(float input[CHANNEL_TWO][INPUT_SIZE_TWO][INPUT_SIZE_TWO], floa
                 for (int c_idx = 0; c_idx < CHANNEL_TWO; c_idx++) {
                     // Calculate index for the correct filter for the current output map and input channel.
                     int filter_index = f_idx * CHANNEL_TWO + c_idx;
-                    Filter* filter = &filter_array_two[filter_index]; // Assumes corrected, larger array
+                    Filter* filter = &filters[filter_index]; // Assumes corrected, larger array
                     
                     float channel_sum = 0.0;
                     // Apply the 5x5 filter kernel to the current input channel.
@@ -87,8 +88,8 @@ void convolve_two(float input[CHANNEL_TWO][INPUT_SIZE_TWO][INPUT_SIZE_TWO], floa
                 // We add it after summing the contributions from all 6 channels.
                 // We can grab the bias from the first filter in the group for this output map.
                 int first_filter_index = f_idx * CHANNEL_TWO;
-                total_sum += filter_array_two[first_filter_index].bias;
-                output_two[f_idx][i][j] = total_sum;
+                total_sum += filters[first_filter_index].bias;
+                output[f_idx][i][j] = total_sum;
             }
         }
     }
