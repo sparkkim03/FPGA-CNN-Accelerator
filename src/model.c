@@ -2,6 +2,7 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "conv.h"
 #include "pooling.h" 
@@ -28,35 +29,11 @@ float final_output[FC_LAYER_SIZE_FOUR];
 Filter filter_array_one[NUM_FILTER_ONE]; // Six filters in the first conv layer
 Filter filter_array_two[NUM_FILTER_TWO * CHANNEL_TWO]; // 16 filters in the second conv layer
 
-void softmax(float* input, int size) {
-    float max_val = -FLT_MAX;
-    for (int i = 0; i < size; i++) {
-        if (input[i] > max_val) {
-            max_val = input[i];
-        }
-    }
-
-    float sum_exp = 0.0f;
-    for (int i = 0; i < size; i++) {
-        // Subtract max_val for numerical stability
-        sum_exp += expf(input[i] - max_val);
-    }
-
-    for (int i = 0; i < size; i++) {
-        input[i] = expf(input[i] - max_val) / sum_exp;
-    }
-}
-
-void print_output_vector(float* vector, int size, const char* name) {
-    printf("  %s:\n    [", name);
-    for (int i = 0; i < size; i++) {
-        printf("%8.6f%s", vector[i], (i == size - 1) ? "" : ", ");
-    }
-    printf("]\n\n");
-}
-
 int main() {
-    char * image_to_classify = "src/data/digit_7_index_70.txt";
+    // Measuring the time
+    clock_t tic = clock();
+
+    char * image_to_classify = "src/img.txt";
 
     load_image(image_to_classify, input_one);
 
@@ -101,7 +78,11 @@ int main() {
     // Get the argMax of probability
     int predicted_num = argmax(final_output, 10);
 
+    clock_t toc = clock();
+
     printf("Final prediction for this image is %d\n", predicted_num);
+
+    printf("Prediction took %f ms", ((double)(toc - tic) / CLOCKS_PER_SEC)*(float)1000);
 
     return 0;
 }
