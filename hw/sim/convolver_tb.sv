@@ -25,7 +25,7 @@ module convolver_tb();
     timeunit 10ns;
     timeprecision 1ns;
 
-    parameter integer n = 4;    // Input matrix size (toy version)
+    parameter integer n = 5;    // Input matrix size (toy version)
     parameter integer k = 3;    // Kernel size (toy version)
     parameter integer N = 16;   // Total bit width
     parameter integer Q = 12;   // Fractional bit width
@@ -88,6 +88,8 @@ module convolver_tb();
         
         repeat(2) @(posedge clk);
         
+         ce <= 0;
+        
         // Simulate input activations like the
         // Golden python script
         for(int i = 0; i < n*n; i++) begin
@@ -97,8 +99,6 @@ module convolver_tb();
             //ce <= 1;
         end
         
-        
-        ce <= 0;
         
         repeat(1000) @(posedge clk);
         

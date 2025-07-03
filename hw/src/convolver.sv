@@ -44,9 +44,9 @@ module convolver #(
     logic [$clog2(n)-1:0] row_counter;
     logic [$clog2(n)-1:0] col_counter;
     
-    logic signed [N*2 - 1:0] conv_sum_temp;
+    //logic signed [N*2 - 1:0] conv_sum_temp;
     
-    assign conv_o  = conv_sum_temp >>> Q;
+    //assign conv_o  = conv_sum_temp >>> Q;
 
     //logic [$clog2((n-k+1)*(n-k+1)):0] output_counter; 
 
@@ -86,32 +86,27 @@ module convolver #(
 
     // Calculate the output value
     always_comb begin
-        conv_sum_temp = 0; // Initialize the sum
+        conv_o = 0; // Initialize the sum
         for (int i = 0; i < k; i++) begin
             for (int j = 0; j < k; j++) begin
                 // Adjust for the fractional bit width
-                conv_sum_temp += ($signed(window[i][j]) * $signed(weights_i[i][j]));
+                conv_o += ($signed(window[i][j]) * $signed(weights_i[i][j]));
             end
+            //conv_o = conv_sum_temp;
         end
     end
 
     always_comb begin 
+        done_conv_o = 0;
         case(state)
             IDLE: begin
                 done_conv_o = 0;
-                val_conv_o = 0;
             end
             PROCESSING: begin
                 done_conv_o = 0;
-                val_conv_o = (row_counter >= k-1);
             end
             DONE: begin
                 done_conv_o = 1;
-                val_conv_o = 0;
-            end
-            default: begin
-                done_conv_o = 0;
-                val_conv_o = 0;
             end
         endcase
     end
@@ -144,11 +139,19 @@ module convolver #(
             state <= IDLE;
             row_counter <= 0;
             col_counter <= 0;
+            val_conv_o <= 0;
         end
         else begin
             state <= next_state;
 
             if(state == PROCESSING) begin
+                if((row_counter >= k-1) && (col_counter >= k-1)) begin
+                    val_conv_o <= 1;
+                end
+                else begin
+                    val_conv_o <= 0;
+                end
+            
                 if(col_counter == n-1) begin
                     col_counter <= 0;
                     row_counter <= row_counter+1;
@@ -160,6 +163,10 @@ module convolver #(
             else if(state == IDLE && next_state == PROCESSING) begin
                 row_counter <= 0;
                 col_counter <= 0;
+            end
+            
+            if(state == DONE) begin
+                val_conv_o <= 0;
             end
         end 
     end
