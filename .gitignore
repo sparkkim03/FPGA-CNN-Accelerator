@@ -1,7 +1,7 @@
 .venv
 .vscode
 __pycache__
-/src/data
+/sw/baseline/data
 /model/train-images.idx3-ubyte
 /model/train-labels.idx1-ubyte
 predict.dSYM
