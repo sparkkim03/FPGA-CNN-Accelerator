@@ -28,7 +28,8 @@ module convolver #(
     input logic rst_i,
     input logic en_i,
     input logic signed [N-1:0] activation_i,
-    input logic [N-1:0] weights_i[0:k-1][0:k-1],
+    input logic signed [N-1:0] weights_i[0:k-1][0:k-1],
+    input logic signed [N-1:0] bias_i,
     output logic signed [N-1:0] conv_o,
     output logic val_conv_o,
     output logic done_conv_o
@@ -86,7 +87,7 @@ module convolver #(
 
     // Calculate the output value
     always_comb begin
-        conv_o = 0; // Initialize the sum
+        conv_o = bias_i; // Initialize the sum
         for (int i = 0; i < k; i++) begin
             for (int j = 0; j < k; j++) begin
                 // Adjust for the fractional bit width
