@@ -7,3 +7,6 @@ __pycache__
 predict.dSYM
 *.o
 predict
+/model/conv_test.ipynb
+/model/golden.ipynb
+/model/convert_dataset.ipynb
