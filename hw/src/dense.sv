@@ -36,107 +36,150 @@ module dense #(
 );
     logic wea;
     // both address width fixed to largest instances (input 256 output 120)
-    logic [7:0] input_addr; 
+    logic [7:0] input_addr_write;
+    logic [7:0] input_addr_read; 
     logic [14:0] weight_addr;  
-   
-    logic signed [N-1:0] input_reg;
-    logic signed [N-1:0] weight_reg;
+    
+    logic signed [N-1:0] input_data;
+    logic signed [N-1:0] weight_data;
     
     logic [$clog2(n)-1:0] input_counter; // number of inputs, multiplexed to input_addr
     
-    logic [$clog2(n)-1:0] dotproduct_coutner; // inner loop counter, multiplexed to input_addr
-    logic [$clog2(m)-1:0] neuron_counter; // outer loop counter
+    logic [$clog2(n):0] x_counter; // inner loop counter, multiplexed to input_addr
+    logic [$clog2(m)-1:0] y_counter; // outer loop counter
     
-    logic signed [N*2-1:0] accum_reg;
-    
-    // the weight address will just be calculated like this
-    // changed by changing neuron_counter and input_address values
-    assign weight_addr = neuron_counter * m + input_addr;
-    
+    logic signed [N-1:0] accumulator;
+    logic signed [N-1:0] data_temp;
+    logic signed [N*2-1:0] product;
+
     // both bram created assuming max size
     dense_input i_mem(
-        .addra(addr_m),
+        .addra(input_addr_write),
         .clka(clk_i),
         .dina(data_i),
-        .douta(input_reg),
-        .wea(wea)
+        .wea(wea),
+        .addrb(input_addr_read),
+        .clkb(clk_i),
+        .doutb(input_data),
+        .enb(1'b1)
     );
     // data for weights will be preloaded, no need to write
     dense_weights w_mem(
-        .addra(),
+        .addra(weight_addr),
         .clka(clk_i),
-        .douta(weight_reg)
+        .douta(weight_data),
+        .wea(1'b0) 
     );
     
     enum logic [1:0] {
         IDLE,
         LOAD,
         PROCESSING,
-        DONE
+        STORE
     } state, next_state;  
-
+    
     always_comb begin
-        wea = 0;
+        // the weight address will just be calculated like this
+        // changed by changing neuron_counter and input_address values
+        weight_addr = x_counter * m + y_counter; // n*m weights
+        //weight_addr = y_counter * n + x_counter;
+        
+        input_addr_write = input_counter;
+        input_addr_read = x_counter;
+        
+        product = input_data * weight_data;
+    end
+    
+    always_comb begin
+        data_o = 0;
         val_dense_o = 0;
         done_dense_o = 0;
-
-        case(state)
-            IDLE: begin
-                wea = 0;
-            end
-            
+        wea = 0;
+        
+        case(state) 
             LOAD: begin
-                wea = 1; // write enable for loading data
+                wea = 1;
             end
-            
-            PROCESSING: begin
-                wea = 0; // no writing during processing
-            end
-            
-            DONE: begin
-                wea = 0; // no writing during done state
-            end
-            
-            default: begin
-                wea = 0;
+            STORE: begin
+                val_dense_o = 1;
+                // applying bias and relu
+                data_temp = accumulator + bias_i[y_counter];
+                data_o = (data_temp > 0) ? data_temp : 0;
+                
+                if(y_counter == m - 1) begin
+                    done_dense_o = 1;
+                end
             end
         endcase
     end
-
+    
     always_comb begin
         next_state = state;
         case(state)
             IDLE: begin
-                if(en_i) begin
-                    next_state = LOAD;
-                end
+                if(en_i) next_state = LOAD;
             end
-            
             LOAD: begin
-                if(addr_m == n - 1) begin
-                    next_state = PROCESSING;
-                end
+                if(input_counter == n - 1) next_state = PROCESSING;
             end
-            
-            PROCESSING: begin 
+            PROCESSING: begin
+                if(x_counter == n) next_state = STORE;
             end
-            
-            DONE: begin
-                if(~en_i) begin
-                    next_state = IDLE;
-                end else begin
-                    next_state = DONE;
-                end
+            STORE: begin
+                if(y_counter == m - 1) next_state = IDLE;
+                else next_state = PROCESSING;
             end
-            
-            default: next_state = IDLE;
+            default: begin
+                next_state = IDLE;
+            end
         endcase
-    end 
+    end
+    
+    // accumulator
+    always_ff @(posedge clk_i) begin
+        if(state == PROCESSING) begin
+            if(x_counter == 0) begin
+                accumulator <= product;
+            end
+            else begin
+                accumulator <= accumulator + product;
+            end
+        end
+        else if(state == STORE) begin
+            accumulator <= 0;
+        end
+    end
+    
+    always_ff @(posedge clk_i) begin
+        case(state)
+            IDLE: begin
+                x_counter <= 0;
+                y_counter <= 0;
+                input_counter <= 0; 
+                accumulator <= 0;
+            end
+            LOAD: begin
+                input_counter <= input_counter + 1;
+                    
+                if(next_state == PROCESSING) begin
+                    x_counter <= 1;
+                end
+            end
+            PROCESSING: begin
+                x_counter <= x_counter + 1;
+            end
+            STORE: begin
+                x_counter <= 0;
+                y_counter <= y_counter + 1;
+            end
+        endcase
+    end
     
     always_ff @(posedge clk_i or posedge rst_i) begin
-        if (rst_i) begin
+        if(rst_i) begin
             state <= IDLE;
-        end else begin
+        end
+        else begin
             state <= next_state;
         end
     end
