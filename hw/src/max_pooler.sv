@@ -73,6 +73,7 @@ module max_pooler # (
 
     // determine the max value in the pooling window
     always_comb begin
+        data_o = 0;
         // most negative number
         pool_temp = signed'({1'b1, {(N-1){1'b0}}});
         for(int i = 0; i < s; i++) begin
@@ -80,6 +81,7 @@ module max_pooler # (
                 pool_temp = ($signed(pool_temp) > $signed(pool_window[i][j])) ? pool_temp : pool_window[i][j];
             end
         end
+        data_o = (pool_temp > 0) ? pool_temp : 0;
     end
 
     always_comb begin
@@ -110,7 +112,6 @@ module max_pooler # (
             col_counter <= 0;
             input_counter <= 0;
             output_counter <= 0;
-            data_o <= 0;
         end    
         else begin
             state <= next_state;

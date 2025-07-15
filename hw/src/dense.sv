@@ -28,8 +28,11 @@ module dense #(
     input logic en_i,
 
     input logic signed [N-1:0] data_i, // input data
-    input logic signed [N-1:0] bias_i[m-1:0], // bias for the dense layer
-
+    input logic signed [N-1:0] bias_i, // bias for the dense layer
+    input logic signed [N-1:0] weight_i,
+    
+    output logic [14:0] weight_addr_o,
+    
     output logic signed [N-1:0] data_o, // output data
     output logic val_dense_o, // valid signal for the output data
     output logic done_dense_o // done signal for the dense layer
@@ -63,13 +66,6 @@ module dense #(
         .doutb(input_data),
         .enb(1'b1)
     );
-    // data for weights will be preloaded, no need to write
-    dense_weights w_mem(
-        .addra(weight_addr),
-        .clka(clk_i),
-        .douta(weight_data),
-        .wea(1'b0) 
-    );
     
     enum logic [1:0] {
         IDLE,
@@ -81,11 +77,13 @@ module dense #(
     always_comb begin
         // the weight address will just be calculated like this
         // changed by changing neuron_counter and input_address values
-        weight_addr = x_counter * m + y_counter; // n*m weights
+        weight_addr_o = x_counter * m + y_counter; // n*m weights
         //weight_addr = y_counter * n + x_counter;
         
         input_addr_write = input_counter;
         input_addr_read = x_counter;
+        
+        weight_data = weight_i;
         
         product = input_data * weight_data;
     end
@@ -103,7 +101,7 @@ module dense #(
             STORE: begin
                 val_dense_o = 1;
                 // applying bias and relu
-                data_temp = accumulator + bias_i[y_counter];
+                data_temp = accumulator + bias_i;
                 data_o = (data_temp > 0) ? data_temp : 0;
                 
                 if(y_counter == m - 1) begin

@@ -51,7 +51,7 @@ module convolver #(
 
     //logic [$clog2((n-k+1)*(n-k+1)):0] output_counter; 
 
-    //logic [N-2:0] conv_sum_temp;
+    logic signed [N-1:0] conv_sum_temp;
 
     enum logic [1:0] {
         IDLE,
@@ -87,14 +87,14 @@ module convolver #(
 
     // Calculate the output value
     always_comb begin
-        conv_o = bias_i; // Initialize the sum
+        conv_sum_temp = bias_i; // Initialize the sum
         for (int i = 0; i < k; i++) begin
             for (int j = 0; j < k; j++) begin
                 // Adjust for the fractional bit width
-                conv_o += ($signed(window[i][j]) * $signed(weights_i[i][j]));
+                conv_sum_temp += ($signed(window[i][j]) * $signed(weights_i[i][j]));
             end
-            //conv_o = conv_sum_temp;
         end
+        conv_o = (conv_sum_temp > 0) ? conv_sum_temp : 0;
     end
 
     always_comb begin 
