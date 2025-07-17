@@ -133,8 +133,36 @@ module convolver #(
             default: next_state = IDLE; 
         endcase
     end
+    
+    always_ff @(posedge clk_i) begin
+        if(state == PROCESSING) begin
+            if((row_counter >= k-1) && (col_counter >= k-1)) begin
+                val_conv_o <= 1;
+            end
+            else begin
+                val_conv_o <= 0;
+            end
+        
+            if(col_counter == n-1) begin
+                col_counter <= 0;
+                row_counter <= row_counter+1;
+            end
+            else begin
+                col_counter <= col_counter+1;
+            end
+        end
+        
+        if(state == DONE) begin
+            val_conv_o <= 0;
+        end
+        
+        if(state == IDLE && next_state == PROCESSING) begin
+            row_counter <= 0;
+            col_counter <= 0;
+        end
+    end
 
-    always_ff @(posedge clk_i or posedge rst_i) begin
+    always_ff @(posedge clk_i) begin
         if(rst_i) begin
             // Async reset
             state <= IDLE;
@@ -143,32 +171,7 @@ module convolver #(
             val_conv_o <= 0;
         end
         else begin
-            state <= next_state;
-
-            if(state == PROCESSING) begin
-                if((row_counter >= k-1) && (col_counter >= k-1)) begin
-                    val_conv_o <= 1;
-                end
-                else begin
-                    val_conv_o <= 0;
-                end
-            
-                if(col_counter == n-1) begin
-                    col_counter <= 0;
-                    row_counter <= row_counter+1;
-                end
-                else begin
-                    col_counter <= col_counter+1;
-                end
-            end
-            else if(state == IDLE && next_state == PROCESSING) begin
-                row_counter <= 0;
-                col_counter <= 0;
-            end
-            
-            if(state == DONE) begin
-                val_conv_o <= 0;
-            end
+            state <= next_state;         
         end 
     end
     

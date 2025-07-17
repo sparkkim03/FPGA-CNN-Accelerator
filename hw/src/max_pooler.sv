@@ -106,6 +106,41 @@ module max_pooler # (
     end
     
     always_ff @(posedge clk_i) begin
+        if(state == PROCESSING) begin
+            if(row_counter == s) begin
+                row_counter <= 0;
+                col_counter <= 0;
+                input_counter <= 1;
+            end
+            
+            if((col_counter % s) - 1 == 0 && (input_counter+1 >= n + s)) begin
+                val_pool_o <= 1;
+                output_counter <= output_counter + 1;
+            end
+            else begin
+                val_pool_o <= 0;
+            end
+            
+            if(col_counter == n-1) begin
+                col_counter <= 0;
+                row_counter <= row_counter+1;
+            end
+            else begin
+                col_counter <= col_counter+1;
+            end
+        end
+        
+        if(state == DONE) begin
+            val_pool_o <= 0;
+        end
+        
+        if(state == IDLE && next_state == PROCESSING) begin
+            row_counter <= 0;
+            col_counter <= 0;
+        end
+    end
+    
+    always_ff @(posedge clk_i) begin
         if(rst_i) begin
             state <= IDLE;
             row_counter <= 0;
@@ -115,41 +150,6 @@ module max_pooler # (
         end    
         else begin
             state <= next_state;
-            
-            if(state == PROCESSING) begin
-                if(row_counter == s) begin
-                    row_counter <= 0;
-                    col_counter <= 0;
-                    input_counter <= 1;
-                end
-                
-                if((col_counter % s) - 1 == 0 && (input_counter+1 >= n + s)) begin
-                    val_pool_o <= 1;
-                    output_counter <= output_counter + 1;
-                end
-                else begin
-                    val_pool_o <= 0;
-                end
-                
-                if(col_counter == n-1) begin
-                    col_counter <= 0;
-                    row_counter <= row_counter+1;
-                end
-                else begin
-                    col_counter <= col_counter+1;
-                end
-            end
-            else if(state == IDLE && next_state == PROCESSING) begin
-                row_counter <= 0;
-                col_counter <= 0;
-            end
         end
-        
-        if(state == DONE) begin
-            val_pool_o <= 0;
-        end;
     end
-    
-    
-    
 endmodule

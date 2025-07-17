@@ -173,7 +173,7 @@ module dense #(
         endcase
     end
     
-    always_ff @(posedge clk_i or posedge rst_i) begin
+    always_ff @(posedge clk_i) begin
         if(rst_i) begin
             state <= IDLE;
         end
