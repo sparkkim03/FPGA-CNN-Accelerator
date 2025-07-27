@@ -7,9 +7,9 @@ extern const float conv1_bias[6];
 
 // Convolutional Layer 2
 extern const float conv2_weight[2400]; // 16 * 6 * 5 * 5
+extern const float conv2_bias[16];
 
 // Fully Connected Layer 1
-extern const float conv2_bias[16];
 extern const float fc1_weight[30720]; // 120 * 256
 extern const float fc1_bias[120];
 
