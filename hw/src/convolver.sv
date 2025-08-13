@@ -2,18 +2,6 @@
 //////////////////////////////////////////////////////////////////////////////////
 // Engineer: Stefano Park Kim 
 // 
-// Create Date: 07/01/2025 12:49:25 PM
-// Design Name: Convolution Module 
-// Module Name: convolver
-// Project Name: FPGA_CNN_Accelerator 
-// Target Devices: Realdigital AUP-ZU3 
-// Description: 
-// 
-// 
-// Revision:
-// Revision 0.01 - File Created 07/01/2025 12:49:25 PM
-// Revision 0.02 - Initial Write up of the module completed 07/01/2025 14:58:00 PM
-// Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -27,9 +15,13 @@ module convolver #(
     input logic clk_i,
     input logic rst_i,
     input logic en_i,
-    input logic signed [N-1:0] activation_i,
-    input logic signed [N-1:0] weights_i[0:k-1][0:k-1],
+
+    input logic signed [N-1:0] feature_i,
+
+    input logic signed [N-1:0] weight_i,
+
     input logic signed [N-1:0] bias_i,
+
     output logic signed [N-1:0] conv_o,
     output logic val_conv_o,
     output logic done_conv_o
@@ -39,44 +31,46 @@ module convolver #(
     localparam NUM_LINE_BUFFER = k-1;
 
     logic [N-1:0] line_buffer [0:NUM_LINE_BUFFER-1][0:n-1];
+    logic [N-1:0] weight_buffer;
+    logic [N-1:0] feature_buffer;
 
     logic [N-1:0] window [0:k-1][0:k-1];
+    logic [N-1:0] kernel [0:k-1][k-1:0];
+
+    logic [$clog2(k)-1:0] kernel_x;
+    logic [$clog2(k)-1:0] kernel_y;
 
     logic [$clog2(n)-1:0] row_counter;
     logic [$clog2(n)-1:0] col_counter;
-    
-    //logic signed [N*2 - 1:0] conv_sum_temp;
-    
-    //assign conv_o  = conv_sum_temp >>> Q;
 
-    //logic [$clog2((n-k+1)*(n-k+1)):0] output_counter; 
-
-    logic signed [N-1:0] conv_sum_temp;
+    logic signed [2*N-1:0] accum;
 
     enum logic [1:0] {
         IDLE,
+        LOAD_KERNEL,
         PROCESSING,
         DONE
     } state, next_state;
 
     always_ff @(posedge clk_i) begin
+        feature_buffer <= feature_i;
         if (state == PROCESSING) begin
             for (int i = 0; i < k; i++) begin
-                for (int j = k - 1; j > 0; j--) begin
-                    window[i][j] <= window[i][j-1];
+                for (int j = 0; j < k - 1; j++) begin
+                    window[i][j] <= window[i][j+1];
                 end
 
-                if (i == k - 1) begin
-                    window[k-1][0] <= activation_i;
+                if (i == k - 1) begin       
+                    window[k-1][k-1] <= feature_buffer;
                 end else begin
-                    window[i][0] <= line_buffer[i][col_counter]; 
+                    window[i][k-1] <= line_buffer[i][col_counter]; 
                 end
             end
 
             if (NUM_LINE_BUFFER > 0) begin
                 for (int i = 0; i < NUM_LINE_BUFFER; i++) begin
                     if (i == NUM_LINE_BUFFER - 1) begin
-                        line_buffer[i][col_counter] <= activation_i; 
+                        line_buffer[i][col_counter] <= feature_buffer; 
                     end else begin
                         line_buffer[i][col_counter] <= line_buffer[i+1][col_counter]; 
                     end
@@ -85,31 +79,30 @@ module convolver #(
         end
     end
 
+    always_ff @(posedge clk_i) begin
+        weight_buffer <= weight_i;
+        if(state == LOAD_KERNEL) begin
+            kernel[kernel_y][kernel_x] <= weight_buffer;
+        end
+    end
+
     // Calculate the output value
     always_comb begin
-        conv_sum_temp = bias_i; // Initialize the sum
+        accum = bias_i; // Initialize the sum
         for (int i = 0; i < k; i++) begin
             for (int j = 0; j < k; j++) begin
-                // Adjust for the fractional bit width
-                conv_sum_temp += ($signed(window[i][j]) * $signed(weights_i[i][j]));
+                $display("for window[%d][%d](%d) * kernel[%d][%d](%d) = %d", i, j,window[i][j], i, j,kernel[i][j],$signed(window[i][j]) * $signed(kernel[i][j]));
+                accum += ($signed(window[i][j]) * $signed(kernel[i][j]));
             end
         end
-        conv_o = (conv_sum_temp > 0) ? conv_sum_temp : 0;
+        $display("accum: %d", accum);
+        conv_o = (accum > 0) ? accum : 0;
     end
 
     always_comb begin 
         done_conv_o = 0;
-        case(state)
-            IDLE: begin
-                done_conv_o = 0;
-            end
-            PROCESSING: begin
-                done_conv_o = 0;
-            end
-            DONE: begin
-                done_conv_o = 1;
-            end
-        endcase
+        
+        if(state == DONE) done_conv_o = 1;
     end
     
     always_comb begin
@@ -117,6 +110,11 @@ module convolver #(
         case(state)
             IDLE: begin
                 if(en_i) begin
+                    next_state = LOAD_KERNEL;
+                end
+            end
+            LOAD_KERNEL: begin
+                if(kernel_x == k-1 && kernel_y == k-1) begin
                     next_state = PROCESSING;
                 end
             end
@@ -126,49 +124,61 @@ module convolver #(
                 end
             end
             DONE: begin
-                if(!en_i) begin
-                    next_state = IDLE;
-                end
+                next_state = IDLE;
             end
             default: next_state = IDLE; 
         endcase
     end
     
     always_ff @(posedge clk_i) begin
-        if(state == PROCESSING) begin
-            if((row_counter >= k-1) && (col_counter >= k-1)) begin
-                val_conv_o <= 1;
-            end
-            else begin
-                val_conv_o <= 0;
-            end
-        
-            if(col_counter == n-1) begin
-                col_counter <= 0;
-                row_counter <= row_counter+1;
-            end
-            else begin
-                col_counter <= col_counter+1;
-            end
-        end
-        
-        if(state == DONE) begin
-            val_conv_o <= 0;
-        end
-        
-        if(state == IDLE && next_state == PROCESSING) begin
+        if(rst_i) begin
             row_counter <= 0;
             col_counter <= 0;
+            val_conv_o <= 0;
+            kernel_x <= 0;
+            kernel_y <= 0;
+        end
+        else begin
+            case(state) 
+                IDLE: begin
+                    row_counter <= 0;
+                    col_counter <= 0;
+                    val_conv_o <= 0;
+                    kernel_x <= 0;
+                    kernel_y <= 0;
+                end
+                LOAD_KERNEL: begin
+                    if(kernel_x == k - 1) begin
+                        kernel_x <= 0;
+                        kernel_y <= kernel_y + 1;
+                    end
+                    else begin
+                        kernel_x <= kernel_x + 1;
+                    end
+                end
+                PROCESSING: begin
+                     if((row_counter >= k-1) && (col_counter >= k-1)) begin
+                        val_conv_o <= 1;
+                    end
+                    else begin
+                        val_conv_o <= 0;
+                    end
+                
+                    if(col_counter == n-1) begin
+                        col_counter <= 0;
+                        row_counter <= row_counter+1;
+                    end
+                    else begin
+                        col_counter <= col_counter+1;
+                    end
+                end
+            endcase
         end
     end
 
     always_ff @(posedge clk_i) begin
         if(rst_i) begin
-            // Async reset
             state <= IDLE;
-            row_counter <= 0;
-            col_counter <= 0;
-            val_conv_o <= 0;
         end
         else begin
             state <= next_state;         

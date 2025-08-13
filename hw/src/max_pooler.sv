@@ -26,8 +26,10 @@ module max_pooler # (
     input logic clk_i,
     input logic rst_i,
     input logic en_i,
+
     input logic signed [N-1:0] data_i,
     output logic signed [N-1:0] data_o,
+
     output logic val_pool_o,
     output logic done_pool_o
 );
@@ -39,10 +41,8 @@ module max_pooler # (
     logic [$clog2(n)-1:0] row_counter;
     logic [$clog2(n)-1:0] col_counter;
     
-    
-    // counts the numbe
     logic [$clog2(n*n-1):0] input_counter;
-    logic [$clog2((n/s)*(n/2)-1):0] output_counter;
+    logic [$clog2((n/s)*(n/s)-1):0] output_counter;
     
     enum logic [1:0] {
         IDLE,
