@@ -31,82 +31,67 @@ module dense #(
     input logic signed [N-1:0] bias_i, // bias for the dense layer
     input logic signed [N-1:0] weight_i,
     
-    output logic [14:0] weight_addr_o,
-    
     output logic signed [N-1:0] data_o, // output data
     output logic val_dense_o, // valid signal for the output data
     output logic done_dense_o // done signal for the dense layer
 );
+    localparam BRAM_ADDR_WIDTH = 8;
+    localparam ZEXT = BRAM_ADDR_WIDTH - $clog2(n);
+    
     logic wea;
-    // both address width fixed to largest instances (input 256 output 120)
-    logic [7:0] input_addr_write;
-    logic [7:0] input_addr_read; 
-    logic [14:0] weight_addr;  
+    // we just use the address width as needed
+    // rest of the BRAM might be unused
+    logic [$clog2(n)-1:0] data_addr_write;
+    logic [$clog2(n)-1:0] data_addr_read; 
     
-    logic signed [N-1:0] input_data;
-    logic signed [N-1:0] weight_data;
+    logic signed [N-1:0] data_buffer;
+    logic signed [N-1:0] bias_buffer;
+    logic signed [N-1:0] weight_buffer;
     
-    logic [$clog2(n)-1:0] input_counter; // number of inputs, multiplexed to input_addr
+    logic signed [N-1:0] bias_mem [m-1:0];
+    
+    logic [$clog2(m)-1:0] bias_counter;
+    logic [$clog2(n)-1:0] data_counter;
     
     logic [$clog2(n):0] x_counter; // inner loop counter, multiplexed to input_addr
-    logic [$clog2(m)-1:0] y_counter; // outer loop counter
+    logic [$clog2(m):0] y_counter; // outer loop counter
     
     logic signed [N-1:0] accumulator;
     logic signed [N-1:0] data_temp;
     logic signed [N*2-1:0] product;
 
-    // both bram created assuming max size
-    dense_input i_mem(
-        .addra(input_addr_write),
+    dense_bram data_mem(
+        .addra({{(ZEXT){1'b0}}, data_addr_write}),
         .clka(clk_i),
         .dina(data_i),
         .wea(wea),
-        .addrb(input_addr_read),
+        .addrb({{(ZEXT){1'b0}}, data_addr_read}),
         .clkb(clk_i),
-        .doutb(input_data),
-        .enb(1'b1)
+        .doutb(data_buffer)
     );
     
-    enum logic [1:0] {
+    enum logic [2:0] {
         IDLE,
-        LOAD,
+        LOAD_BIAS,
+        LOAD_DATA,
         PROCESSING,
-        STORE
+        DONE
     } state, next_state;  
     
-    always_comb begin
-        // the weight address will just be calculated like this
-        // changed by changing neuron_counter and input_address values
-        weight_addr_o = x_counter * m + y_counter; // n*m weights
-        //weight_addr = y_counter * n + x_counter;
-        
-        input_addr_write = input_counter;
-        input_addr_read = x_counter;
-        
-        weight_data = weight_i;
-        
-        product = input_data * weight_data;
-    end
+    assign wea = (state == LOAD_DATA);
+    assign data_addr_write = data_counter;
+    assign data_addr_read = x_counter;
+    assign product = data_buffer * weight_i;
+    assign done_dense_o = (state == DONE);
     
     always_comb begin
         data_o = 0;
-        val_dense_o = 0;
-        done_dense_o = 0;
-        wea = 0;
         
         case(state) 
-            LOAD: begin
-                wea = 1;
-            end
-            STORE: begin
-                val_dense_o = 1;
+            PROCESSING: begin
                 // applying bias and relu
-                data_temp = accumulator + bias_i;
-                data_o = (data_temp > 0) ? data_temp : 0;
-                
-                if(y_counter == m - 1) begin
-                    done_dense_o = 1;
-                end
+                data_temp = accumulator + bias_mem[y_counter-1];
+                data_o = (data_temp > 0) ? data_temp : 0;   
             end
         endcase
     end
@@ -115,17 +100,19 @@ module dense #(
         next_state = state;
         case(state)
             IDLE: begin
-                if(en_i) next_state = LOAD;
+                if(en_i) next_state = LOAD_BIAS;
             end
-            LOAD: begin
-                if(input_counter == n - 1) next_state = PROCESSING;
+            LOAD_BIAS: begin
+                if(bias_counter == m-1) next_state = LOAD_DATA;
+            end
+            LOAD_DATA: begin
+                if(data_counter == n-1) next_state = PROCESSING;
             end
             PROCESSING: begin
-                if(x_counter == n) next_state = STORE;
+                if(y_counter == m) next_state = DONE;
             end
-            STORE: begin
-                if(y_counter == m - 1) next_state = IDLE;
-                else next_state = PROCESSING;
+            DONE: begin
+                next_state = IDLE;
             end
             default: begin
                 next_state = IDLE;
@@ -135,42 +122,69 @@ module dense #(
     
     // accumulator
     always_ff @(posedge clk_i) begin
-        if(state == PROCESSING) begin
+        if(state == PROCESSING) begin        
+            accumulator <= accumulator + product; 
+            
             if(x_counter == 0) begin
-                accumulator <= product;
+                accumulator <= 0;
             end
-            else begin
-                accumulator <= accumulator + product;
-            end
-        end
-        else if(state == STORE) begin
-            accumulator <= 0;
         end
     end
     
     always_ff @(posedge clk_i) begin
-        case(state)
-            IDLE: begin
-                x_counter <= 0;
-                y_counter <= 0;
-                input_counter <= 0; 
-                accumulator <= 0;
-            end
-            LOAD: begin
-                input_counter <= input_counter + 1;
-                    
-                if(next_state == PROCESSING) begin
-                    x_counter <= 1;
+        bias_buffer <= bias_i;
+        if(state == LOAD_BIAS) begin
+            bias_mem[bias_counter] <= bias_i;
+        end
+    end
+    
+    always_ff @(posedge clk_i) begin
+        weight_buffer <= weight_i;
+    end
+    
+    always_ff @(posedge clk_i) begin
+        if(rst_i) begin
+            x_counter <= 0;
+            y_counter <= 0;
+            data_counter <= 0;
+            bias_counter <= 0; 
+            accumulator <= 0;
+        end
+        else begin
+            case(state)
+                IDLE: begin
+                    x_counter <= 0;
+                    y_counter <= 0;
+                    data_counter <= 0;
+                    bias_counter <= 0; 
+                    accumulator <= 0;
+                    val_dense_o <= 0;
                 end
-            end
-            PROCESSING: begin
-                x_counter <= x_counter + 1;
-            end
-            STORE: begin
-                x_counter <= 0;
-                y_counter <= y_counter + 1;
-            end
-        endcase
+                LOAD_BIAS: begin
+                    bias_counter <= bias_counter + 1;
+                end
+                LOAD_DATA: begin
+                    data_counter <= data_counter + 1;
+                        
+                    if(next_state == PROCESSING) begin
+                        x_counter <= 1;
+                    end
+                end
+                PROCESSING: begin
+                    if(x_counter == n) begin
+                        x_counter <= 0;
+                        
+                        val_dense_o <= 1;
+                        
+                        y_counter <= y_counter + 1;
+                    end
+                    else begin
+                        val_dense_o <= 0;
+                        x_counter <= x_counter + 1;
+                    end
+                end
+            endcase
+        end
     end
     
     always_ff @(posedge clk_i) begin
