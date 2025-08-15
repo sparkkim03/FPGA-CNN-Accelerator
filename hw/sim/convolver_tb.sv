@@ -33,10 +33,13 @@ module convolver_tb();
     logic clk, rst, ce;
 
     logic signed [N-1:0] activation;
-    // implicitly flips the kernel weight
-    logic [N-1:0] weights [0:k-1][k-1:0];
-    logic [N-1:0] bias;
     logic signed [N-1:0] conv_o;
+    logic signed [N-1:0] weights;
+    
+    logic [N-1:0] bias;
+    
+    
+    logic [N-1:0] kernel [0:k-1][0:k-1];
 
     logic val_conv_o, done_conv_o;
     
@@ -51,8 +54,8 @@ module convolver_tb();
         .clk_i(clk),
         .rst_i(rst),
         .en_i(ce),
-        .activation_i(activation),
-        .weights_i(weights),
+        .feature_i(activation),
+        .weight_i(weights),
         .bias_i(bias),
         .conv_o(conv_o),
         .val_conv_o(val_conv_o),
@@ -71,7 +74,7 @@ module convolver_tb();
         // Weights copied from the golden python script
         for(int i = 0; i < k; i++) begin
             for(int j = 0; j < k; j++) begin
-                weights[i][j] = count;
+                kernel[i][j] = count;
                 count++;
             end
         end
@@ -82,24 +85,29 @@ module convolver_tb();
         rst = 1;
         activation = '0;
         count = 0;
-        bias = 1;
+        bias = 0;
 
         repeat(50) @(posedge clk);
         rst = 0;
 
         ce <= 1;
         
-        repeat(2) @(posedge clk);
+        @(posedge clk);
         
-         ce <= 0;
+        ce <= 0;
+        
+        for(int x = 0; x < k; x++) begin
+            for(int y = 0; y < k; y++) begin
+                weights = kernel[x][y];
+                @(posedge clk);
+            end
+        end
         
         // Simulate input activations like the
         // Golden python script
         for(int i = 0; i < n*n; i++) begin
             activation = i;
-            //repeat(5) @(posedge clk);
             @(posedge clk);
-            //ce <= 1;
         end
         
         
