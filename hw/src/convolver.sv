@@ -9,8 +9,8 @@
 module convolver #(
     parameter integer n = 28,   // Input matrix size
     parameter integer k = 5,    // Kernel size
-    parameter integer N = 16,   // Total bit width
-    parameter integer Q = 12    // Fractional bit width
+    parameter integer c = 6,    // Number of channels
+    parameter integer N = 16   // Total bit width
 )(
     input logic clk_i,
     input logic rst_i,
@@ -30,18 +30,20 @@ module convolver #(
     // k - 1 rows must be buffered
     localparam NUM_LINE_BUFFER = k-1;
 
-    logic [N-1:0] line_buffer [0:NUM_LINE_BUFFER-1][0:n-1];
+    logic [N-1:0] line_buffer [0:c-1][0:NUM_LINE_BUFFER-1][0:n-1];
     logic [N-1:0] weight_buffer;
     logic [N-1:0] feature_buffer;
 
-    logic [N-1:0] window [0:k-1][0:k-1];
-    logic [N-1:0] kernel [0:k-1][k-1:0];
+    logic [N-1:0] window [0:c-1][0:k-1][0:k-1];
+    logic [N-1:0] kernel [0:c-1][0:k-1][k-1:0];
 
     logic [$clog2(k)-1:0] kernel_x;
     logic [$clog2(k)-1:0] kernel_y;
+    logic [$clog2(c)-1:0] kernel_c;
 
     logic [$clog2(n)-1:0] row_counter;
     logic [$clog2(n)-1:0] col_counter;
+    logic [$clog2(c)-1:0] channel_counter;
 
     logic signed [2*N-1:0] accum;
 
@@ -55,24 +57,25 @@ module convolver #(
     always_ff @(posedge clk_i) begin
         feature_buffer <= feature_i;
         if (state == PROCESSING) begin
+            // Update windows and line buffers for the current channel
             for (int i = 0; i < k; i++) begin
                 for (int j = 0; j < k - 1; j++) begin
-                    window[i][j] <= window[i][j+1];
+                    window[channel_counter][i][j] <= window[channel_counter][i][j+1];
                 end
 
                 if (i == k - 1) begin       
-                    window[k-1][k-1] <= feature_buffer;
+                    window[channel_counter][k-1][k-1] <= feature_buffer;
                 end else begin
-                    window[i][k-1] <= line_buffer[i][col_counter]; 
+                    window[channel_counter][i][k-1] <= line_buffer[channel_counter][i][col_counter]; 
                 end
             end
 
             if (NUM_LINE_BUFFER > 0) begin
                 for (int i = 0; i < NUM_LINE_BUFFER; i++) begin
                     if (i == NUM_LINE_BUFFER - 1) begin
-                        line_buffer[i][col_counter] <= feature_buffer; 
+                        line_buffer[channel_counter][i][col_counter] <= feature_buffer; 
                     end else begin
-                        line_buffer[i][col_counter] <= line_buffer[i+1][col_counter]; 
+                        line_buffer[channel_counter][i][col_counter] <= line_buffer[channel_counter][i+1][col_counter]; 
                     end
                 end
             end
@@ -82,20 +85,22 @@ module convolver #(
     always_ff @(posedge clk_i) begin
         weight_buffer <= weight_i;
         if(state == LOAD_KERNEL) begin
-            kernel[kernel_y][kernel_x] <= weight_buffer;
+            kernel[kernel_c][kernel_y][kernel_x] <= weight_buffer;
         end
     end
 
     // Calculate the output value
     always_comb begin
         accum = bias_i; // Initialize the sum
-        for (int i = 0; i < k; i++) begin
-            for (int j = 0; j < k; j++) begin
-                $display("for window[%d][%d](%d) * kernel[%d][%d](%d) = %d", i, j,window[i][j], i, j,kernel[i][j],$signed(window[i][j]) * $signed(kernel[i][j]));
-                accum += ($signed(window[i][j]) * $signed(kernel[i][j]));
+        for (int ch = 0; ch < c; ch++) begin
+            for (int i = 0; i < k; i++) begin
+                for (int j = 0; j < k; j++) begin
+                    //$display("for channel[%d] window[%d][%d](%d) * kernel[%d][%d](%d) = %d", ch, i, j, window[ch][i][j], i, j, kernel[ch][i][j], $signed(window[ch][i][j]) * $signed(kernel[ch][i][j]));
+                    accum += ($signed(window[ch][i][j]) * $signed(kernel[ch][i][j]));
+                end
             end
         end
-        $display("accum: %d", accum);
+        //$display("accum: %d", accum);
         conv_o = (accum > 0) ? accum : 0;
     end
 
@@ -114,12 +119,12 @@ module convolver #(
                 end
             end
             LOAD_KERNEL: begin
-                if(kernel_x == k-1 && kernel_y == k-1) begin
+                if(kernel_x == k-1 && kernel_y == k-1 && kernel_c == c-1) begin
                     next_state = PROCESSING;
                 end
             end
             PROCESSING: begin
-                if(row_counter == n-1 && col_counter == n-1) begin
+                if(row_counter == n-1 && col_counter == n-1 && channel_counter == c-1) begin
                     next_state = DONE;
                 end
             end
@@ -134,42 +139,58 @@ module convolver #(
         if(rst_i) begin
             row_counter <= 0;
             col_counter <= 0;
+            channel_counter <= 0;
             val_conv_o <= 0;
             kernel_x <= 0;
             kernel_y <= 0;
+            kernel_c <= 0;
         end
         else begin
             case(state) 
                 IDLE: begin
                     row_counter <= 0;
                     col_counter <= 0;
+                    channel_counter <= 0;
                     val_conv_o <= 0;
                     kernel_x <= 0;
                     kernel_y <= 0;
+                    kernel_c <= 0;
                 end
                 LOAD_KERNEL: begin
                     if(kernel_x == k - 1) begin
                         kernel_x <= 0;
-                        kernel_y <= kernel_y + 1;
+                        if(kernel_y == k - 1) begin
+                            kernel_y <= 0;
+                            kernel_c <= kernel_c + 1;
+                        end
+                        else begin
+                            kernel_y <= kernel_y + 1;
+                        end
                     end
                     else begin
                         kernel_x <= kernel_x + 1;
                     end
                 end
                 PROCESSING: begin
-                     if((row_counter >= k-1) && (col_counter >= k-1)) begin
+                    if((row_counter >= k-1) && (col_counter >= k-1) && (channel_counter == c-1)) begin
                         val_conv_o <= 1;
                     end
                     else begin
                         val_conv_o <= 0;
                     end
                 
-                    if(col_counter == n-1) begin
-                        col_counter <= 0;
-                        row_counter <= row_counter+1;
+                    if(channel_counter == c-1) begin
+                        channel_counter <= 0;
+                        if(col_counter == n-1) begin
+                            col_counter <= 0;
+                            row_counter <= row_counter+1;
+                        end
+                        else begin
+                            col_counter <= col_counter+1;
+                        end
                     end
                     else begin
-                        col_counter <= col_counter+1;
+                        channel_counter <= channel_counter + 1;
                     end
                 end
             endcase

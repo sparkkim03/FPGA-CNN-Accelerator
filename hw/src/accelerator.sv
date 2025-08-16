@@ -41,7 +41,16 @@ module accelerator(
     input logic [31:0]BRAM_PORTB_1_dout,
     output logic BRAM_PORTB_1_en,
     output logic BRAM_PORTB_1_rst,
-    output logic [3:0]BRAM_PORTB_1_we
+    output logic [3:0]BRAM_PORTB_1_we,
+    
+    // BRAM_2 - BIAS
+    output logic [31:0]BRAM_PORTB_2_addr,
+    output logic BRAM_PORTB_2_clk,
+    output logic [31:0]BRAM_PORTB_2_din,
+    input logic [31:0]BRAM_PORTB_2_dout,
+    output logic BRAM_PORTB_2_en,
+    output logic BRAM_PORTB_2_rst,
+    output logic [3:0]BRAM_PORTB_2_we
     );
     
     localparam N = 8;
