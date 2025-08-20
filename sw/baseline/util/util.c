@@ -43,3 +43,11 @@ int argmax(float * input, int size) {
 
     return max_idx;
 }
+
+void reLU(float * input, int size) {
+    for(int i = 0; i < size; i++) {
+        if(input[i] < 0) {
+            input[i] = 0;
+        }
+    }
+}

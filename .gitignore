@@ -2,6 +2,8 @@
 .vscode
 __pycache__
 /sw/baseline/data
+/sw/baseline/platform.c
+/sw/baseline/platform.h
 /model/train-images.idx3-ubyte
 /model/train-labels.idx1-ubyte
 predict.dSYM

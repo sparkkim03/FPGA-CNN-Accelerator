@@ -11,10 +11,7 @@
 #define POOL_INPUT_CHANNEL_TWO 16
 #define POOL_OUTPUT_SIZE_TWO 4 //(8/2)
 
-void maxpool_one(float input[POOL_INPUT_CHANNEL_ONE][POOL_INPUT_SIZE_ONE][POOL_INPUT_SIZE_ONE], 
-                 float output[POOL_INPUT_CHANNEL_ONE][POOL_OUTPUT_SIZE_ONE][POOL_OUTPUT_SIZE_ONE]);
-                 
-void maxpool_two(float input[POOL_INPUT_CHANNEL_TWO][POOL_INPUT_SIZE_TWO][POOL_INPUT_SIZE_TWO], 
-                 float output[POOL_INPUT_CHANNEL_TWO][POOL_OUTPUT_SIZE_TWO][POOL_OUTPUT_SIZE_TWO]);
+void maxpool(const float* input, int input_channels, int input_size,
+             float* output, int output_size);
 
 #endif

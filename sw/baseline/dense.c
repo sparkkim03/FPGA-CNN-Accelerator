@@ -5,37 +5,18 @@
 #include "dense.h"
 #include "lenet_weights.h"
 
-void dense_one(float * input, float * output) {
-    for(int o = 0; o < FC_LAYER_SIZE_TWO; o++) {
+void dense(float *input, int input_size, 
+           float *output, int output_size, 
+           const float *weights, const float *biases) {
+
+    for (int o = 0; o < output_size; o++) {
         float sum = 0.0f;
-        for(int i = 0; i < FC_LAYER_SIZE_ONE; i++) {
-            sum += input[i] * fc1_weight[o * FC_LAYER_SIZE_ONE + i];
+        for (int i = 0; i < input_size; i++) {
+            // Access the weight from the 1D array using the output and input indices
+            sum += input[i] * weights[o * input_size + i];
         }
-        sum += fc1_bias[o];
+        sum += biases[o];
         output[o] = sum;
     }
 }
-
-void dense_two(float * input, float * output) {
-    for(int o = 0; o < FC_LAYER_SIZE_THREE; o++) {
-        float sum = 0.0f;
-        for(int i = 0; i < FC_LAYER_SIZE_TWO; i++) {
-            sum += input[i] * fc2_weight[o * FC_LAYER_SIZE_TWO + i];
-        }
-        sum += fc2_bias[o];
-        output[o] = sum;
-    }
-}
-
-void dense_three(float * input, float * output) {
-    for(int o = 0; o < FC_LAYER_SIZE_FOUR; o++) {
-        float sum = 0.0f;
-        for(int i = 0; i < FC_LAYER_SIZE_THREE; i++) {
-            sum += input[i] * fc3_weight[o * FC_LAYER_SIZE_THREE + i];
-        }
-        sum += fc3_bias[o];
-        output[o] = sum;
-    }
-}
-
 

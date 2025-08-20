@@ -7,9 +7,8 @@
 #define FC_LAYER_SIZE_THREE 84
 #define FC_LAYER_SIZE_FOUR 10
 
-void dense_one(float * input, float * output);
-void dense_two(float * input, float * output);
-void dense_three(float * input, float * output);
-void dense_four(float * input, float * output);
+void dense(float *input, int input_size, 
+           float *output, int output_size, 
+           const float *weights, const float *biases);
 
 #endif

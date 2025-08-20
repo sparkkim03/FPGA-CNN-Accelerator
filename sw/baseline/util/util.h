@@ -11,4 +11,6 @@ void flatten(float input[16][4][4], float * output);
 
 int argmax(float * input, int size);
 
+void reLU(float * input, int inputSize);
+
 #endif 

@@ -16,8 +16,7 @@ typedef struct {
     float bias;
 } Filter;
 
-void initFilter_One(Filter * filter, int filterNth);
-void initFilter_Two(Filter * filter, int filtherNth);
+void initFilter(Filter * filter, int filterNth, int filterNum);
 
 void convolve_one(float input[INPUT_SIZE_ONE][INPUT_SIZE_ONE], 
                     float output[NUM_FILTER_ONE][OUTPUT_SIZE_ONE][OUTPUT_SIZE_ONE],
@@ -28,6 +27,11 @@ void convolve_two(float input[CHANNEL_TWO][INPUT_SIZE_TWO][INPUT_SIZE_TWO],
                     Filter filters[NUM_FILTER_TWO * CHANNEL_TWO]
                 );
 
-void reLU(float * input, int inputSize);
-
+void convolve(const float *input,
+              int input_channels,
+              int input_size,
+              float *output,
+              int num_filters,
+              int output_size,
+              const Filter *filters);
 #endif
